@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Discord Webhook Sender</title>
+<style>
+  :root {
+    --bg: #1a1b1e;
+    --panel: #232428;
+    --panel-2: #2b2d31;
+    --border: #3a3c42;
+    --text: #e6e6e8;
+    --muted: #949ba4;
+    --blurple: #5865f2;
+    --blurple-hover: #4752c4;
+    --green: #3ba55d;
+    --red: #ed4245;
+    --amber: #faa81a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 16px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "gg sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+    display: flex;
+    justify-content: center;
+  }
+  .wrap { width: 100%; max-width: 640px; }
+  h1 {
+    font-size: 22px;
+    margin: 0 0 4px;
+    font-weight: 700;
+  }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 24px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  input[type="text"], input[type="number"], textarea {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 10px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color .15s;
+  }
+  input:focus, textarea:focus { border-color: var(--blurple); }
+  textarea { resize: vertical; min-height: 90px; }
+  .row { display: flex; gap: 12px; margin-top: 16px; }
+  .row > div { flex: 1; }
+  .field { margin-bottom: 16px; }
+  .field:last-child { margin-bottom: 0; }
+  .buttons { display: flex; gap: 12px; margin-top: 4px; }
+  button {
+    flex: 1;
+    border: none;
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    color: #fff;
+    background: var(--blurple);
+    transition: background .15s, opacity .15s;
+  }
+  button:hover:not(:disabled) { background: var(--blurple-hover); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.stop { background: var(--red); }
+  button.stop:hover:not(:disabled) { background: #c93b3e; }
+  .log {
+    background: #131417;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    height: 220px;
+    overflow-y: auto;
+    font-family: "Cascadia Code", Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .log div { margin: 0; }
+  .ok   { color: var(--green); }
+  .err  { color: var(--red); }
+  .warn { color: var(--amber); }
+  .dim  { color: var(--muted); }
+  .bar {
+    height: 6px;
+    background: var(--panel-2);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 14px;
+  }
+  .bar > i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: var(--blurple);
+    transition: width .2s;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Discord Webhook Sender</h1>
+  <p class="sub">Fires a payload at a webhook endpoint N times, with rate-limit handling.</p>
+
+  <div class="panel">
+    <div class="field">
+      <label for="webhookUrl">Webhook URL</label>
+      <input type="text" id="webhookUrl" placeholder="https://discord.com/api/webhooks/…">
+    </div>
+
+    <div class="field">
+      <label for="message">Message</label>
+      <textarea id="message" placeholder="Type the message to send…"></textarea>
+    </div>
+
+    <div class="row">
+      <div>
+        <label for="count">How many times</label>
+        <input type="number" id="count" value="10" min="1" max="100000">
+      </div>
+      <div>
+        <label for="delay">Delay between (ms)</label>
+        <input type="number" id="delay" value="20" min="0" max="60000">
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label for="username">Override username (optional)</label>
+        <input type="text" id="username" placeholder="leave blank to keep default">
+      </div>
+      <div>
+        <label for="avatar">Avatar URL (optional)</label>
+        <input type="text" id="avatar" placeholder="https://…">
+      </div>
+    </div>
+
+    <div class="buttons" style="margin-top:20px;">
+      <button id="startBtn">Start</button>
+      <button id="stopBtn" class="stop" disabled>Stop</button>
+    </div>
+
+    <div class="bar"><i id="progress"></i></div>
+  </div>
+
+  <div class="log" id="log"><div class="dim">Ready.</div></div>
+
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const startBtn = $('startBtn');
+  const stopBtn  = $('stopBtn');
+  const logEl    = $('log');
+  const progEl   = $('progress');
+
+  let running = false;
+  let sent = 0;
+  let target = 0;
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  function log(msg, cls = '') {
+    const line = document.createElement('div');
+    if (cls) line.className = cls;
+    const t = new Date().toLocaleTimeString();
+    line.textContent = `[${t}] ${msg}`;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function setProgress(done, total) {
+    progEl.style.width = total > 0 ? `${Math.min(100, (done / total) * 100)}%` : '0%';
+  }
+
+  function validWebhook(url) {
+    return /^https:\/\/(canary\.|ptb\.)?discord(app)?\.com\/api\/(v\d+\/)?webhooks\/\d+\/[\w-]+$/.test(url);
+  }
+
+  async function postOne(url, body) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    if (res.status === 429) {
+      let retryMs = 1000;
+      try {
+        const data = await res.json();
+        if (data && typeof data.retry_after === 'number') {
+          retryMs = Math.ceil(data.retry_after * 1000) + 150;
+        }
+      } catch (_) {}
+      return { retry: true, retryMs };
+    }
+
+    if (!res.ok) {
+      let detail = '';
+      try {
+        const data = await res.json();
+        detail = data.message || JSON.stringify(data);
+      } catch (_) {
+        detail = res.statusText;
+      }
+      return { ok: false, status: res.status, detail };
+    }
+
+    return { ok: true };
+  }
+
+  async function run() {
+    const url      = $('webhookUrl').value.trim();
+    const content  = $('message').value;
+    const count    = parseInt($('count').value, 10);
+    const delay    = Math.max(0, parseInt($('delay').value, 10) || 0);
+    const username = $('username').value.trim();
+    const avatar   = $('avatar').value.trim();
+
+    if (!url)               return log('No webhook URL provided.', 'err');
+    if (!validWebhook(url)) return log('That does not look like a valid Discord webhook URL.', 'err');
+    if (!content.trim() && !avatar) return log('Message is empty.', 'err');
+    if (!Number.isFinite(count) || count < 1) return log('Invalid message count.', 'err');
+
+    const body = { content };
+    if (username) body.username = username;
+    if (avatar)   body.avatar_url = avatar;
+
+    running = true;
+    sent = 0;
+    target = count;
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    logEl.innerHTML = '';
+    setProgress(0, target);
+
+    log(`Starting — ${count} message(s), ${delay}ms apart.`, 'dim');
+
+    let attempts = 0;
+    const maxAttempts = count * 5; // safety net against infinite retry loops
+
+    while (sent < target && running && attempts < maxAttempts) {
+      attempts++;
+
+      let result;
+      try {
+        result = await postOne(url, body);
+      } catch (e) {
+        log(`Network error: ${e.message}`, 'err');
+        await sleep(Math.max(delay, 500));
+        continue;
+      }
+
+      if (result.retry) {
+        log(`Rate limited by Discord. Waiting ${result.retryMs}ms…`, 'warn');
+        await sleep(result.retryMs);
+        continue; // don't advance the counter
+      }
+
+      if (!result.ok) {
+        log(`Failed (${result.status}): ${result.detail}`, 'err');
+        // 401/404 means the webhook is dead — stop early
+        if (result.status === 401 || result.status === 404 || result.status === 403) {
+          log('Webhook appears invalid or revoked. Stopping.', 'err');
+          break;
+        }
+        await sleep(Math.max(delay, 500));
+        continue;
+      }
+
+      sent++;
+      setProgress(sent, target);
+      log(`Sent ${sent}/${target}`, 'ok');
+
+      if (sent < target && running) await sleep(delay);
+    }
+
+    if (sent >= target) log(`Done. ${sent} message(s) delivered.`, 'ok');
+    else if (!running)  log(`Stopped early. ${sent} message(s) delivered.`, 'warn');
+
+    running = false;
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    setProgress(sent, target);
+  }
+
+  startBtn.addEventListener('click', () => {
+    if (!running) run();
+  });
+
+  stopBtn.addEventListener('click', () => {
+    if (running) {
+      running = false;
+      log('Stop requested…', 'warn');
+    }
+  });
+})();
+</script>
+</body>
+</html>
