@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -17,6 +17,21 @@
     --green: #3ba55d;
     --red: #ed4245;
     --amber: #faa81a;
+    --log-bg: #131417;
+  }
+  [data-theme="light"] {
+    --bg: #f2f3f5;
+    --panel: #ffffff;
+    --panel-2: #f6f7f8;
+    --border: #d9dbe0;
+    --text: #1a1b1e;
+    --muted: #6b7280;
+    --blurple: #5865f2;
+    --blurple-hover: #4752c4;
+    --green: #1a8a3d;
+    --red: #d83c3e;
+    --amber: #b8760a;
+    --log-bg: #f8f9fa;
   }
   * { box-sizing: border-box; }
   body {
@@ -27,20 +42,47 @@
     font-family: "gg sans", "Segoe UI", system-ui, -apple-system, sans-serif;
     display: flex;
     justify-content: center;
+    transition: background .2s, color .2s;
   }
   .wrap { width: 100%; max-width: 640px; }
+  .top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
   h1 {
     font-size: 22px;
     margin: 0 0 4px;
     font-weight: 700;
   }
-  .sub { color: var(--muted); font-size: 13px; margin: 0 0 24px; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0; }
+  .theme-toggle {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    flex: none;
+    width: auto;
+    transition: border-color .15s, background .15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .theme-toggle:hover { border-color: var(--blurple); }
   .panel {
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 20px;
     margin-bottom: 16px;
+    transition: background .2s, border-color .2s;
   }
   label {
     display: block;
@@ -50,6 +92,31 @@
     letter-spacing: .04em;
     color: var(--muted);
     margin-bottom: 6px;
+  }
+  .label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .label-row label { margin-bottom: 6px; }
+  .mini-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+    font-family: inherit;
+    flex: none;
+    width: auto;
+    margin-bottom: 6px;
+  }
+  .mini-btn:hover {
+    border-color: var(--blurple);
+    color: var(--text);
   }
   input[type="text"], input[type="number"], textarea {
     width: 100%;
@@ -61,7 +128,7 @@
     font-size: 14px;
     font-family: inherit;
     outline: none;
-    transition: border-color .15s;
+    transition: border-color .15s, background .2s, color .2s;
   }
   input:focus, textarea:focus { border-color: var(--blurple); }
   textarea { resize: vertical; min-height: 90px; }
@@ -87,8 +154,15 @@
   button:disabled { opacity: .45; cursor: not-allowed; }
   button.stop { background: var(--red); }
   button.stop:hover:not(:disabled) { background: #c93b3e; }
+  .log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .log-header label { margin-bottom: 0; }
   .log {
-    background: #131417;
+    background: var(--log-bg);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 14px;
@@ -99,6 +173,7 @@
     line-height: 1.7;
     white-space: pre-wrap;
     word-break: break-word;
+    transition: background .2s, border-color .2s;
   }
   .log div { margin: 0; }
   .ok   { color: var(--green); }
@@ -111,6 +186,7 @@
     border-radius: 3px;
     overflow: hidden;
     margin-top: 14px;
+    transition: background .2s;
   }
   .bar > i {
     display: block;
@@ -119,22 +195,39 @@
     background: var(--blurple);
     transition: width .2s;
   }
+  .save-hint {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 6px;
+    font-style: italic;
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <h1>Discord Webhook Sender</h1>
-  <p class="sub">Fires a payload at a webhook endpoint N times, with rate-limit handling.</p>
+  <div class="top-bar">
+    <div>
+      <h1>Discord Webhook Sender</h1>
+      <p class="sub">Fires a payload at a webhook endpoint N times, with rate-limit handling.</p>
+    </div>
+    <button type="button" class="theme-toggle" id="themeToggle" title="Toggle theme">
+      <span id="themeIcon">☀</span><span id="themeLabel">Light</span>
+    </button>
+  </div>
 
   <div class="panel">
     <div class="field">
       <label for="webhookUrl">Webhook URL</label>
       <input type="text" id="webhookUrl" placeholder="https://discord.com/api/webhooks/…">
+      <div class="save-hint">Saved automatically to this browser.</div>
     </div>
 
     <div class="field">
-      <label for="message">Message</label>
+      <div class="label-row">
+        <label for="message">Message</label>
+        <button type="button" class="mini-btn" id="copyMessageBtn">Copy</button>
+      </div>
       <textarea id="message" placeholder="Type the message to send…"></textarea>
     </div>
 
@@ -145,7 +238,7 @@
       </div>
       <div>
         <label for="delay">Delay between (ms)</label>
-        <input type="number" id="delay" value="20" min="0" max="60000">
+        <input type="number" id="delay" value="1000" min="0" max="60000">
       </div>
     </div>
 
@@ -168,6 +261,10 @@
     <div class="bar"><i id="progress"></i></div>
   </div>
 
+  <div class="log-header">
+    <label>Log</label>
+    <button type="button" class="mini-btn" id="copyLogBtn">Copy Log</button>
+  </div>
   <div class="log" id="log"><div class="dim">Ready.</div></div>
 
 </div>
@@ -180,6 +277,16 @@
   const stopBtn  = $('stopBtn');
   const logEl    = $('log');
   const progEl   = $('progress');
+  const copyMessageBtn = $('copyMessageBtn');
+  const copyLogBtn = $('copyLogBtn');
+  const themeToggle = $('themeToggle');
+  const themeIcon = $('themeIcon');
+  const themeLabel = $('themeLabel');
+
+  const STORAGE_KEY = 'dws.config.v1';
+  const THEME_KEY   = 'dws.theme';
+
+  const PERSISTED_FIELDS = ['webhookUrl', 'count', 'delay', 'username', 'avatar', 'message'];
 
   let running = false;
   let sent = 0;
@@ -187,6 +294,81 @@
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+  // ---------- Theme ----------
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    if (theme === 'light') {
+      themeIcon.textContent = '🌙';
+      themeLabel.textContent = 'Dark';
+    } else {
+      themeIcon.textContent = '☀';
+      themeLabel.textContent = 'Light';
+    }
+  }
+
+  function initTheme() {
+    let saved;
+    try { saved = localStorage.getItem(THEME_KEY); } catch (_) {}
+    if (saved === 'light' || saved === 'dark') {
+      applyTheme(saved);
+    } else {
+      const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+      applyTheme(prefersLight ? 'light' : 'dark');
+    }
+  }
+
+  themeToggle.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    const next = current === 'light' ? 'dark' : 'light';
+    applyTheme(next);
+    try { localStorage.setItem(THEME_KEY, next); } catch (_) {}
+  });
+
+  // ---------- Persistence ----------
+  function loadConfig() {
+    let raw;
+    try { raw = localStorage.getItem(STORAGE_KEY); } catch (_) { return; }
+    if (!raw) return;
+    let data;
+    try { data = JSON.parse(raw); } catch (_) { return; }
+    for (const field of PERSISTED_FIELDS) {
+      if (typeof data[field] === 'string' && data[field].length) {
+        const el = $(field);
+        if (el) el.value = data[field];
+      } else if (typeof data[field] === 'number') {
+        const el = $(field);
+        if (el) el.value = data[field];
+      }
+    }
+  }
+
+  let saveTimer = null;
+  function scheduleSave() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveConfigNow, 300);
+  }
+
+  function saveConfigNow() {
+    const data = {};
+    for (const field of PERSISTED_FIELDS) {
+      const el = $(field);
+      if (el) data[field] = el.value;
+    }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (_) {}
+  }
+
+  function attachPersistence() {
+    for (const field of PERSISTED_FIELDS) {
+      const el = $(field);
+      if (!el) continue;
+      el.addEventListener('input', scheduleSave);
+      el.addEventListener('change', scheduleSave);
+    }
+    // flush on page close
+    window.addEventListener('beforeunload', saveConfigNow);
+  }
+
+  // ---------- Logging ----------
   function log(msg, cls = '') {
     const line = document.createElement('div');
     if (cls) line.className = cls;
@@ -264,7 +446,7 @@
     log(`Starting — ${count} message(s), ${delay}ms apart.`, 'dim');
 
     let attempts = 0;
-    const maxAttempts = count * 5; // safety net against infinite retry loops
+    const maxAttempts = count * 5;
 
     while (sent < target && running && attempts < maxAttempts) {
       attempts++;
@@ -281,12 +463,11 @@
       if (result.retry) {
         log(`Rate limited by Discord. Waiting ${result.retryMs}ms…`, 'warn');
         await sleep(result.retryMs);
-        continue; // don't advance the counter
+        continue;
       }
 
       if (!result.ok) {
         log(`Failed (${result.status}): ${result.detail}`, 'err');
-        // 401/404 means the webhook is dead — stop early
         if (result.status === 401 || result.status === 404 || result.status === 403) {
           log('Webhook appears invalid or revoked. Stopping.', 'err');
           break;
@@ -321,6 +502,31 @@
       log('Stop requested…', 'warn');
     }
   });
+
+  copyMessageBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText($('message').value);
+      copyMessageBtn.textContent = 'Copied!';
+      setTimeout(() => copyMessageBtn.textContent = 'Copy', 1200);
+    } catch (e) {
+      log('Clipboard write failed.', 'err');
+    }
+  });
+
+  copyLogBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(logEl.innerText);
+      copyLogBtn.textContent = 'Copied!';
+      setTimeout(() => copyLogBtn.textContent = 'Copy Log', 1200);
+    } catch (e) {
+      log('Clipboard write failed.', 'err');
+    }
+  });
+
+  // ---------- Init ----------
+  initTheme();
+  loadConfig();
+  attachPersistence();
 })();
 </script>
 </body>
