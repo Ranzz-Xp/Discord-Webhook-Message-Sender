@@ -99,12 +99,13 @@
     align-items: center;
   }
   .label-row label { margin-bottom: 6px; }
+  .row-actions { display: flex; gap: 6px; }
   .mini-btn {
     background: transparent;
     border: 1px solid var(--border);
     color: var(--muted);
     border-radius: 4px;
-    padding: 2px 8px;
+    padding: 3px 9px;
     font-size: 11px;
     font-weight: 600;
     cursor: pointer;
@@ -112,11 +113,16 @@
     font-family: inherit;
     flex: none;
     width: auto;
-    margin-bottom: 6px;
+    margin-bottom: 0;
   }
-  .mini-btn:hover {
+  .mini-btn:hover:not(:disabled) {
     border-color: var(--blurple);
     color: var(--text);
+  }
+  .mini-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .mini-btn.danger:hover:not(:disabled) {
+    border-color: var(--red);
+    color: var(--red);
   }
   input[type="text"], input[type="number"], textarea {
     width: 100%;
@@ -131,13 +137,54 @@
     transition: border-color .15s, background .2s, color .2s;
   }
   input:focus, textarea:focus { border-color: var(--blurple); }
+  input:disabled, textarea:disabled { opacity: .5; cursor: not-allowed; }
   textarea { resize: vertical; min-height: 90px; }
+
+  /* Custom select */
+  .select-wrap {
+    position: relative;
+  }
+  .select-wrap select {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 10px 36px 10px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    cursor: pointer;
+    transition: border-color .15s, background .2s, color .2s;
+  }
+  .select-wrap select:focus { border-color: var(--blurple); }
+  .select-wrap select:disabled { opacity: .5; cursor: not-allowed; }
+  .select-wrap::after {
+    content: '';
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid var(--muted);
+    border-bottom: 2px solid var(--muted);
+    transform: translateY(-70%) rotate(45deg);
+    pointer-events: none;
+  }
+  .select-wrap select option {
+    background: var(--panel-2);
+    color: var(--text);
+  }
+
   .row { display: flex; gap: 12px; margin-top: 16px; }
   .row > div { flex: 1; }
   .field { margin-bottom: 16px; }
   .field:last-child { margin-bottom: 0; }
   .buttons { display: flex; gap: 12px; margin-top: 4px; }
-  button {
+  button.primary {
     flex: 1;
     border: none;
     border-radius: 6px;
@@ -150,10 +197,10 @@
     background: var(--blurple);
     transition: background .15s, opacity .15s;
   }
-  button:hover:not(:disabled) { background: var(--blurple-hover); }
-  button:disabled { opacity: .45; cursor: not-allowed; }
-  button.stop { background: var(--red); }
-  button.stop:hover:not(:disabled) { background: #c93b3e; }
+  button.primary:hover:not(:disabled) { background: var(--blurple-hover); }
+  button.primary:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary.stop { background: var(--red); }
+  button.primary.stop:hover:not(:disabled) { background: #c93b3e; }
   .log-header {
     display: flex;
     justify-content: space-between;
@@ -218,11 +265,31 @@
 
   <div class="panel">
     <div class="field">
-      <label for="webhookUrl">Webhook URL</label>
-      <input type="text" id="webhookUrl" placeholder="https://discord.com/api/webhooks/…">
-      <div class="save-hint">Saved automatically to this browser.</div>
+      <div class="label-row">
+        <label for="webhookSelect">Saved Webhooks</label>
+        <div class="row-actions">
+          <button type="button" class="mini-btn" id="newBtn">+ New</button>
+          <button type="button" class="mini-btn danger" id="deleteBtn">Delete</button>
+        </div>
+      </div>
+      <div class="select-wrap">
+        <select id="webhookSelect"></select>
+      </div>
+      <div class="save-hint">All webhooks and settings are saved automatically to this browser.</div>
     </div>
 
+    <div class="field">
+      <label for="name">Name</label>
+      <input type="text" id="name" placeholder="Main server, test channel…" maxlength="60">
+    </div>
+
+    <div class="field">
+      <label for="webhookUrl">Webhook URL</label>
+      <input type="text" id="webhookUrl" placeholder="https://discord.com/api/webhooks/…">
+    </div>
+  </div>
+
+  <div class="panel">
     <div class="field">
       <div class="label-row">
         <label for="message">Message</label>
@@ -254,8 +321,8 @@
     </div>
 
     <div class="buttons" style="margin-top:20px;">
-      <button id="startBtn">Start</button>
-      <button id="stopBtn" class="stop" disabled>Stop</button>
+      <button class="primary" id="startBtn">Start</button>
+      <button class="primary stop" id="stopBtn" disabled>Stop</button>
     </div>
 
     <div class="bar"><i id="progress"></i></div>
@@ -282,17 +349,36 @@
   const themeToggle = $('themeToggle');
   const themeIcon = $('themeIcon');
   const themeLabel = $('themeLabel');
+  const selectEl = $('webhookSelect');
+  const newBtn = $('newBtn');
+  const deleteBtn = $('deleteBtn');
+  const nameInput = $('name');
+  const urlInput = $('webhookUrl');
 
-  const STORAGE_KEY = 'dws.config.v1';
+  const STORAGE_KEY = 'dws.config.v2';
+  const LEGACY_KEY  = 'dws.config.v1';
   const THEME_KEY   = 'dws.theme';
 
-  const PERSISTED_FIELDS = ['webhookUrl', 'count', 'delay', 'username', 'avatar', 'message'];
+  const SETTINGS_FIELDS = ['count', 'delay', 'username', 'avatar', 'message'];
+
+  const state = {
+    webhooks: [],   // [{ id, name, url }]
+    activeId: null,
+  };
 
   let running = false;
   let sent = 0;
   let target = 0;
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  function genId() {
+    return 'wh_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  }
+
+  function getActive() {
+    return state.webhooks.find(w => w.id === state.activeId) || null;
+  }
 
   // ---------- Theme ----------
   function applyTheme(theme) {
@@ -325,48 +411,179 @@
   });
 
   // ---------- Persistence ----------
-  function loadConfig() {
-    let raw;
-    try { raw = localStorage.getItem(STORAGE_KEY); } catch (_) { return; }
-    if (!raw) return;
-    let data;
-    try { data = JSON.parse(raw); } catch (_) { return; }
-    for (const field of PERSISTED_FIELDS) {
-      if (typeof data[field] === 'string' && data[field].length) {
-        const el = $(field);
-        if (el) el.value = data[field];
-      } else if (typeof data[field] === 'number') {
-        const el = $(field);
-        if (el) el.value = data[field];
-      }
+  function persist() {
+    const settings = {};
+    for (const k of SETTINGS_FIELDS) {
+      const el = $(k);
+      if (el) settings[k] = el.value;
     }
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        webhooks: state.webhooks,
+        activeId: state.activeId,
+        settings,
+      }));
+    } catch (_) {}
   }
 
   let saveTimer = null;
   function scheduleSave() {
     if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveConfigNow, 300);
+    saveTimer = setTimeout(() => {
+      saveActiveFromForm();
+      persist();
+    }, 300);
   }
 
-  function saveConfigNow() {
-    const data = {};
-    for (const field of PERSISTED_FIELDS) {
-      const el = $(field);
-      if (el) data[field] = el.value;
+  function load() {
+    let raw;
+    try { raw = localStorage.getItem(STORAGE_KEY); } catch (_) {}
+
+    if (raw) {
+      try {
+        const data = JSON.parse(raw);
+        if (Array.isArray(data.webhooks)) {
+          state.webhooks = data.webhooks.filter(w => w && typeof w.id === 'string');
+        }
+        state.activeId = data.activeId || null;
+        if (data.settings && typeof data.settings === 'object') {
+          for (const k of SETTINGS_FIELDS) {
+            if (data.settings[k] != null && $(k)) $(k).value = data.settings[k];
+          }
+        }
+      } catch (_) {}
+    } else {
+      // Migrate legacy single-webhook storage
+      let legacy;
+      try { legacy = localStorage.getItem(LEGACY_KEY); } catch (_) {}
+      if (legacy) {
+        try {
+          const d = JSON.parse(legacy);
+          if (d.webhookUrl) {
+            const id = genId();
+            state.webhooks.push({ id, name: 'Default', url: d.webhookUrl });
+            state.activeId = id;
+          }
+          for (const k of SETTINGS_FIELDS) {
+            if (d[k] != null && $(k)) $(k).value = d[k];
+          }
+        } catch (_) {}
+      }
     }
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (_) {}
+
+    if (!getActive()) {
+      state.activeId = state.webhooks[0] ? state.webhooks[0].id : null;
+    }
   }
 
-  function attachPersistence() {
-    for (const field of PERSISTED_FIELDS) {
-      const el = $(field);
-      if (!el) continue;
-      el.addEventListener('input', scheduleSave);
-      el.addEventListener('change', scheduleSave);
+  // ---------- UI Rendering ----------
+  function renderSelect() {
+    selectEl.innerHTML = '';
+
+    if (state.webhooks.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '— no webhooks yet, click + New —';
+      opt.disabled = true;
+      opt.selected = true;
+      selectEl.appendChild(opt);
+      selectEl.disabled = true;
+      return;
     }
-    // flush on page close
-    window.addEventListener('beforeunload', saveConfigNow);
+
+    selectEl.disabled = false;
+    for (const w of state.webhooks) {
+      const opt = document.createElement('option');
+      opt.value = w.id;
+      opt.textContent = w.name || 'Untitled';
+      if (w.id === state.activeId) opt.selected = true;
+      selectEl.appendChild(opt);
+    }
   }
+
+  function loadActiveIntoForm() {
+    const w = getActive();
+    if (!w) {
+      nameInput.value = '';
+      urlInput.value = '';
+      nameInput.disabled = true;
+      urlInput.disabled = true;
+      deleteBtn.disabled = true;
+      return;
+    }
+    nameInput.disabled = false;
+    urlInput.disabled = false;
+    deleteBtn.disabled = false;
+    nameInput.value = w.name || '';
+    urlInput.value = w.url || '';
+  }
+
+  function saveActiveFromForm() {
+    const w = getActive();
+    if (!w) return;
+    w.name = nameInput.value;
+    w.url = urlInput.value;
+  }
+
+  // ---------- Webhook CRUD ----------
+  newBtn.addEventListener('click', () => {
+    saveActiveFromForm();
+    const id = genId();
+    state.webhooks.push({ id, name: 'New Webhook', url: '' });
+    state.activeId = id;
+    renderSelect();
+    loadActiveIntoForm();
+    persist();
+    nameInput.focus();
+    nameInput.select();
+  });
+
+  deleteBtn.addEventListener('click', () => {
+    const w = getActive();
+    if (!w) return;
+    const label = w.name || 'Untitled';
+    if (!confirm(`Delete "${label}"? This cannot be undone.`)) return;
+
+    const idx = state.webhooks.findIndex(x => x.id === w.id);
+    state.webhooks.splice(idx, 1);
+    const next = state.webhooks[Math.min(idx, state.webhooks.length - 1)];
+    state.activeId = next ? next.id : null;
+
+    renderSelect();
+    loadActiveIntoForm();
+    persist();
+  });
+
+  selectEl.addEventListener('change', () => {
+    saveActiveFromForm();
+    state.activeId = selectEl.value || null;
+    loadActiveIntoForm();
+    persist();
+  });
+
+  nameInput.addEventListener('input', () => {
+    const w = getActive();
+    if (!w) return;
+    w.name = nameInput.value;
+
+    // Update the matching option's label live
+    const opt = Array.from(selectEl.options).find(o => o.value === w.id);
+    if (opt) opt.textContent = w.name || 'Untitled';
+
+    scheduleSave();
+  });
+
+  urlInput.addEventListener('input', scheduleSave);
+
+  for (const k of SETTINGS_FIELDS) {
+    const el = $(k);
+    if (el) el.addEventListener('input', scheduleSave);
+  }
+
+  window.addEventListener('beforeunload', () => {
+    saveActiveFromForm();
+    persist();
+  });
 
   // ---------- Logging ----------
   function log(msg, cls = '') {
@@ -419,14 +636,18 @@
   }
 
   async function run() {
-    const url      = $('webhookUrl').value.trim();
+    saveActiveFromForm();
+    const active = getActive();
+
+    const url      = (active && active.url || '').trim();
+    const label    = (active && active.name) ? `"${active.name}"` : '(unnamed)';
     const content  = $('message').value;
     const count    = parseInt($('count').value, 10);
     const delay    = Math.max(0, parseInt($('delay').value, 10) || 0);
     const username = $('username').value.trim();
     const avatar   = $('avatar').value.trim();
 
-    if (!url)               return log('No webhook URL provided.', 'err');
+    if (!url)               return log('No webhook URL provided for the active entry.', 'err');
     if (!validWebhook(url)) return log('That does not look like a valid Discord webhook URL.', 'err');
     if (!content.trim() && !avatar) return log('Message is empty.', 'err');
     if (!Number.isFinite(count) || count < 1) return log('Invalid message count.', 'err');
@@ -443,7 +664,7 @@
     logEl.innerHTML = '';
     setProgress(0, target);
 
-    log(`Starting — ${count} message(s), ${delay}ms apart.`, 'dim');
+    log(`Starting on ${label} — ${count} message(s), ${delay}ms apart.`, 'dim');
 
     let attempts = 0;
     const maxAttempts = count * 5;
@@ -525,8 +746,9 @@
 
   // ---------- Init ----------
   initTheme();
-  loadConfig();
-  attachPersistence();
+  load();
+  renderSelect();
+  loadActiveIntoForm();
 })();
 </script>
 </body>
