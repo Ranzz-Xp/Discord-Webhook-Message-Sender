@@ -37,7 +37,7 @@ The log panel will show each attempt, any rate-limit warnings, and errors.
 |-------|-------------|---------|
 | Webhook URL | Your Discord webhook endpoint. Must match the expected format. | – |
 | Message | The text content to send. | – |
-| How many times | Number of messages to send. | 10 |
-| Delay between (ms) | Milliseconds to wait between successful sends. | 20 |
+| How many times | Number of messages to send. | 1 |
+| Delay between (ms) | Milliseconds to wait between successful sends. | 10 |
 | Override username | Optional display name for the webhook. | webhook default  |
 | Avatar URL | Optional avatar image URL. | webhook default |
