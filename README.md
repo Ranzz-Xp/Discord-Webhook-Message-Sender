@@ -5,6 +5,7 @@ A single-file HTML tool for sending custom messages to a Discord webhook repeate
 ## Live Demo
 
 Once GitHub Pages is enabled for this repository, the tool will be available at:
+https://ranzz-xp.github.io/Discord-Webhook-Message-Sender/
 
 ## Features
 
